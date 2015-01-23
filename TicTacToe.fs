@@ -23,18 +23,18 @@ type Board () =
     let tracks =
         seq {
             //  Diagonals
-            yield A1, B2, C3
-            yield C1, B2, A3
+            yield cells |> pos1 |> pos1, cells |> pos2 |> pos2, cells |> pos3 |> pos3
+            yield cells |> pos3 |> pos1, cells |> pos2 |> pos2, cells |> pos1 |> pos3
             
             //  Horizontals
-            yield A1, B1, C1
-            yield A2, B2, C2
-            yield A3, B3, C3
+            yield cells |> pos1 |> pos1, cells |> pos1 |> pos2, cells |> pos1 |> pos3
+            yield cells |> pos2 |> pos1, cells |> pos2 |> pos2, cells |> pos2 |> pos3
+            yield cells |> pos3 |> pos1, cells |> pos3 |> pos2, cells |> pos3 |> pos3
             
             //  Verticals
-            yield A1, A2, A3
-            yield B1, B2, B3
-            yield C1, C2, C3
+            yield cells |> pos1 |> pos1, cells |> pos2 |> pos1, cells |> pos3 |> pos1
+            yield cells |> pos1 |> pos2, cells |> pos2 |> pos2, cells |> pos3 |> pos2
+            yield cells |> pos1 |> pos3, cells |> pos2 |> pos3, cells |> pos3 |> pos3
         }
         
     member this.Tracks = tracks
@@ -62,16 +62,13 @@ type Board () =
         | C3 -> cells |> pos3 |> pos3
         
     override this.ToString() =
-        let row1 = cells |> pos1
-        let row2 = cells |> pos2
-        let row3 = cells |> pos3
-        
         let printCell (Ref cell) = match cell with Empty -> " " | Taken X -> "X" | Taken O -> "O"
+        let printLocation = this.GetCell >> printCell
         
         sprintf "
 | %s | %s | %s |
 | %s | %s | %s |
-| %s | %s | %s |" (row1 |> pos1 |> printCell) (row1 |> pos2 |> printCell) (row1 |> pos3 |> printCell) (row2 |> pos1 |> printCell) (row2 |> pos2 |> printCell) (row2 |> pos3 |> printCell) (row3 |> pos1 |> printCell) (row3 |> pos2 |> printCell) (row3 |> pos3 |> printCell)
+| %s | %s | %s |" (printLocation A1) (printLocation B1) (printLocation C1) (printLocation A2) (printLocation B2) (printLocation C2) (printLocation A3) (printLocation B3) (printLocation C3) 
         
 
 type BoardState = {
@@ -80,7 +77,7 @@ type BoardState = {
 } with
     static member Default = { playerToGo = X; board = Board() }
 
-type GameResult = StillPlaying | Winner of PlayerToken | Stalemate
+type GameState = Playing | Winner of PlayerToken | Stalemate
 
 let random = System.Random()
 
@@ -93,16 +90,14 @@ let getPlayerMoveLocation (board : Board) =
     
 let getState (board : Board) =
     let maybeWinner = 
-        board.Tracks |> Seq.tryPick(fun (c1, c2, c3) ->
-            let cellContents location = !(board.GetCell location)
-            
-            match cellContents c1, cellContents c2, cellContents c3 with
-            | Taken t1, Taken t2, Taken t3 when t1 = t2 && t2 = t3 -> Some t1
+        board.Tracks |> Seq.tryPick(fun track ->
+            match track with
+            | Ref (Taken c1), Ref (Taken c2), Ref (Taken c3) when c1 = c2 && c2 = c3 -> Some c1
             | _ -> None)
             
     match maybeWinner with
     | None when board.IsFull -> Stalemate
-    | None -> StillPlaying
+    | None -> Playing
     | Some winner -> Winner winner
 
 let rec GameTurn state =
@@ -111,7 +106,7 @@ let rec GameTurn state =
     match getState state.board with
     | Winner winner ->
         printfn "We have a winner: %A" winner
-    | StillPlaying ->
+    | Playing ->
         let moveLocation = getPlayerMoveLocation state.board
         
         state.board.Place state.playerToGo moveLocation
